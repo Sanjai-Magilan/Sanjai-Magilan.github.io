@@ -308,7 +308,7 @@
                 this.y = y;
                 this.width = 20;
                 this.height = 20;
-                this.speed = type === 'basic' ? 2 : 3;
+                this.speed = type === 'basic' ? 1 : 1.5;
                 this.health = type === 'basic' ? 30 : 50;
                 this.maxHealth = this.health;
                 this.shootCooldown = 0;
@@ -331,7 +331,7 @@
                 this.shootCooldown--;
                 if (dist < 300 && this.shootCooldown <= 0) {
                     this.shoot();
-                    this.shootCooldown = 60;
+                    this.shootCooldown = 100;
                 }
 
                 if (this.x < 0) this.x = 0;
@@ -360,11 +360,20 @@
                 ctx.restore();
 
                 // Health bar
+                const barWidth = 25;
+                const barHeight = 4;
+                const barX = this.x - barWidth / 2;
+                const barY = this.y - 18;
+
+                ctx.fillStyle = '#ff0000';
+                ctx.fillRect(barX, barY, barWidth, barHeight);
+
                 ctx.fillStyle = '#00ff00';
-                ctx.fillRect(this.x - 10, this.y - 20, 20 * (this.health / this.maxHealth), 3);
-                ctx.strokeStyle = '#00ff00';
+                ctx.fillRect(barX, barY, barWidth * (this.health / this.maxHealth), barHeight);
+
+                ctx.strokeStyle = '#ffff00';
                 ctx.lineWidth = 1;
-                ctx.strokeRect(this.x - 10, this.y - 20, 20, 3);
+                ctx.strokeRect(barX, barY, barWidth, barHeight);
             }
         }
 
@@ -483,7 +492,7 @@
 
         function spawnEnemies() {
             enemies = [];
-            const enemyCount = 3 + gameState.level * 2;
+            const enemyCount = 2 + gameState.level;
 
             for (let i = 0; i < enemyCount; i++) {
                 let x, y;
@@ -492,7 +501,7 @@
                     y = Math.random() * (canvas.height - 100) + 50;
                 } while (Math.hypot(x - player.x, y - player.y) < 150);
 
-                const type = gameState.level > 2 && Math.random() > 0.5 ? 'strong' : 'basic';
+                const type = gameState.level > 3 && Math.random() > 0.6 ? 'strong' : 'basic';
                 enemies.push(new Enemy(x, y, type));
             }
 
@@ -517,6 +526,8 @@
 
             // Update bullets
             for (let i = bullets.length - 1; i >= 0; i--) {
+                if (!bullets[i]) continue;
+                
                 bullets[i].update();
 
                 if (!bullets[i].isAlive()) {
@@ -525,11 +536,14 @@
                 }
 
                 // Check collision with enemies
-                for (let j = 0; j < enemies.length; j++) {
+                let hitEnemy = false;
+                for (let j = enemies.length - 1; j >= 0; j--) {
+                    if (!enemies[j]) continue;
+                    
                     const enemy = enemies[j];
                     const dist = Math.hypot(bullets[i].x - enemy.x, bullets[i].y - enemy.y);
 
-                    if (dist < enemy.width) {
+                    if (dist < 15) {
                         enemy.health -= 20;
                         gameState.score += 10;
 
@@ -548,6 +562,7 @@
                         }
 
                         bullets.splice(i, 1);
+                        hitEnemy = true;
                         break;
                     }
                 }
