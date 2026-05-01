@@ -264,8 +264,8 @@
             maxAmmo: 30,
             dashCooldown: 0,
             dashDistance: 50,
-            hasLaser: false,
-            laserCharges: 0
+            hasBoom: false,
+            boomCharges: 0
         };
 
         // Game objects
@@ -275,8 +275,8 @@
         let wallRects = [];
         let healthPacks = [];
         let ammoPacks = [];
-        let laserPacks = [];
-        let lasers = [];
+        let boomPacks = [];
+        let boomExplosions = [];
 
         // Input handling
         const keys = {};
@@ -460,9 +460,9 @@
         function shoot() {
             if (!gameState.running || gameState.paused) return;
 
-            // Use laser if available
-            if (player.hasLaser && player.laserCharges > 0) {
-                fireLaser();
+            // Use boom if available
+            if (player.hasBoom && player.boomCharges > 0) {
+                fireBoom();
                 return;
             }
 
@@ -481,31 +481,28 @@
             }
         }
 
-        function fireLaser() {
-            if (player.laserCharges <= 0) return;
+        function fireBoom() {
+            if (player.boomCharges <= 0) return;
 
-            player.laserCharges--;
-            const endX = player.x + Math.cos(player.angle) * 1000;
-            const endY = player.y + Math.sin(player.angle) * 1000;
+            player.boomCharges--;
+            const boomRadius = 250;
 
-            lasers.push({
-                x1: player.x,
-                y1: player.y,
-                x2: endX,
-                y2: endY,
-                life: 10,
-                maxLife: 10
+            boomExplosions.push({
+                x: player.x,
+                y: player.y,
+                radius: 0,
+                maxRadius: boomRadius,
+                life: 30,
+                maxLife: 30
             });
 
-            // Instant kill all enemies hit by laser
+            // Kill all enemies within boom radius
             for (let j = enemies.length - 1; j >= 0; j--) {
                 if (!enemies[j]) continue;
                 const enemy = enemies[j];
 
-                // Check if enemy is on the laser line
-                const dist = pointToLineDistance(enemy.x, enemy.y, player.x, player.y, endX, endY);
-                if (dist < 25) {
-                    // Kill enemy instantly
+                const dist = Math.hypot(enemy.x - player.x, enemy.y - player.y);
+                if (dist < boomRadius) {
                     gameState.score += 250;
                     enemies.splice(j, 1);
 
@@ -517,18 +514,12 @@
                     }
 
                     // Particles
-                    for (let k = 0; k < 10; k++) {
+                    for (let k = 0; k < 15; k++) {
                         const angle = Math.random() * Math.PI * 2;
-                        particles.push(new Particle(enemy.x, enemy.y, Math.cos(angle) * 5, Math.sin(angle) * 5, '#00ffff', 25));
+                        particles.push(new Particle(enemy.x, enemy.y, Math.cos(angle) * 6, Math.sin(angle) * 6, '#ff6600', 30));
                     }
                 }
             }
-        }
-
-        function pointToLineDistance(px, py, x1, y1, x2, y2) {
-            const num = Math.abs((y2 - y1) * px - (x2 - x1) * py + x2 * y1 - y2 * x1);
-            const den = Math.sqrt((y2 - y1) ** 2 + (x2 - x1) ** 2);
-            return num / den;
         }
 
         function reloadAmmo() {
@@ -626,7 +617,7 @@
                             }
 
                             if (gameState.level >= 15 && Math.random() > 0.95) {
-                                laserPacks.push({ x: enemy.x, y: enemy.y, collected: false });
+                                boomPacks.push({ x: enemy.x, y: enemy.y, collected: false });
                             }
                         }
 
@@ -687,21 +678,22 @@
                 }
             }
 
-            // Check laser packs
-            for (let pack of laserPacks) {
+            // Check boom packs
+            for (let pack of boomPacks) {
                 const dist = Math.hypot(pack.x - player.x, pack.y - player.y);
                 if (dist < 20 && !pack.collected) {
-                    player.hasLaser = true;
-                    player.laserCharges = Math.min(10, player.laserCharges + 1);
+                    player.hasBoom = true;
+                    player.boomCharges = Math.min(10, player.boomCharges + 1);
                     pack.collected = true;
                 }
             }
 
-            // Update lasers
-            for (let i = lasers.length - 1; i >= 0; i--) {
-                lasers[i].life--;
-                if (lasers[i].life <= 0) {
-                    lasers.splice(i, 1);
+            // Update boom explosions
+            for (let i = boomExplosions.length - 1; i >= 0; i--) {
+                boomExplosions[i].life--;
+                boomExplosions[i].radius = boomExplosions[i].maxRadius * (1 - boomExplosions[i].life / boomExplosions[i].maxLife);
+                if (boomExplosions[i].life <= 0) {
+                    boomExplosions.splice(i, 1);
                 }
             }
 
@@ -712,8 +704,8 @@
                 player.ammo = player.maxAmmo;
                 healthPacks = [];
                 ammoPacks = [];
-                laserPacks = [];
-                lasers = [];
+                boomPacks = [];
+                boomExplosions = [];
                 spawnEnemies();
             }
 
@@ -815,15 +807,15 @@
                 }
             }
 
-            // Draw laser packs (RARE!)
-            for (let pack of laserPacks) {
+            // Draw boom packs (RARE!)
+            for (let pack of boomPacks) {
                 if (!pack.collected) {
-                    ctx.fillStyle = '#00ffff';
+                    ctx.fillStyle = '#ff6600';
                     ctx.beginPath();
                     ctx.arc(pack.x, pack.y, 10, 0, Math.PI * 2);
                     ctx.fill();
 
-                    ctx.fillStyle = '#0088ff';
+                    ctx.fillStyle = '#ffaa00';
                     ctx.beginPath();
                     ctx.arc(pack.x, pack.y, 7, 0, Math.PI * 2);
                     ctx.fill();
@@ -832,26 +824,31 @@
                     ctx.font = 'bold 12px Arial';
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
-                    ctx.fillText('⚡', pack.x, pack.y);
+                    ctx.fillText('💥', pack.x, pack.y);
                 }
             }
 
-            // Draw lasers
-            for (let laser of lasers) {
-                const opacity = laser.life / laser.maxLife;
-                ctx.strokeStyle = `rgba(0, 255, 255, ${opacity})`;
-                ctx.lineWidth = 8;
+            // Draw boom explosions
+            for (let boom of boomExplosions) {
+                const opacity = boom.life / boom.maxLife;
+                
+                // Outer explosion circle
+                ctx.fillStyle = `rgba(255, 102, 0, ${opacity * 0.6})`;
                 ctx.beginPath();
-                ctx.moveTo(laser.x1, laser.y1);
-                ctx.lineTo(laser.x2, laser.y2);
-                ctx.stroke();
+                ctx.arc(boom.x, boom.y, boom.radius, 0, Math.PI * 2);
+                ctx.fill();
 
-                // Inner laser glow
-                ctx.strokeStyle = `rgba(255, 255, 255, ${opacity * 0.5})`;
-                ctx.lineWidth = 4;
+                // Inner explosion circle
+                ctx.fillStyle = `rgba(255, 200, 0, ${opacity * 0.8})`;
                 ctx.beginPath();
-                ctx.moveTo(laser.x1, laser.y1);
-                ctx.lineTo(laser.x2, laser.y2);
+                ctx.arc(boom.x, boom.y, boom.radius * 0.6, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Shockwave outline
+                ctx.strokeStyle = `rgba(255, 255, 100, ${opacity})`;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(boom.x, boom.y, boom.radius, 0, Math.PI * 2);
                 ctx.stroke();
             }
 
@@ -871,7 +868,7 @@
         function updateUI() {
             document.getElementById('health').textContent = Math.max(0, Math.floor(player.health));
             document.getElementById('ammo').textContent = player.ammo;
-            document.getElementById('laser').textContent = player.laserCharges;
+            document.getElementById('laser').textContent = player.boomCharges;
             document.getElementById('score').textContent = gameState.score;
             document.getElementById('levelText').textContent = `Level ${gameState.level} - Enemies: ${enemies.length}/${gameState.lastEnemyCount}`;
         }
@@ -890,14 +887,14 @@
             gameState.score = 0;
             player.health = player.maxHealth;
             player.ammo = player.maxAmmo;
-            player.hasLaser = false;
-            player.laserCharges = 0;
+            player.hasBoom = false;
+            player.boomCharges = 0;
             bullets = [];
             particles = [];
             healthPacks = [];
             ammoPacks = [];
-            laserPacks = [];
-            lasers = [];
+            boomPacks = [];
+            boomExplosions = [];
             document.getElementById('gameOverScreen').style.display = 'none';
             document.getElementById('pauseBtn').textContent = '⏸ Pause';
             spawnEnemies();
