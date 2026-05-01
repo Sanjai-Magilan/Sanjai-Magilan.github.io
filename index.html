@@ -46,12 +46,7 @@
         }
 
         .controls {
-            margin-top: 20px;
-            padding: 15px;
-            background: #222;
-            border: 2px solid #ff6600;
-            border-radius: 5px;
-            max-width: 800px;
+            display: none;
         }
 
         .controls h3 {
@@ -75,11 +70,7 @@
         }
 
         .stats {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 15px;
-            margin-top: 15px;
-            max-width: 800px;
+            display: none;
         }
 
         .stat-box {
@@ -286,6 +277,8 @@
             keys[e.key.toLowerCase()] = true;
             if (e.key.toLowerCase() === 'e') reloadAmmo();
             if (e.key.toLowerCase() === ' ') dash();
+            if (e.key.toLowerCase() === 'p') togglePause();
+            if (e.key.toLowerCase() === 'r') restartGame();
         });
 
         window.addEventListener('keyup', (e) => {
@@ -863,6 +856,43 @@
                 ctx.textBaseline = 'middle';
                 ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2);
             }
+
+            // Draw UI overlay on canvas
+            // Background panel for UI
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(0, 0, canvas.width, 60);
+
+            // Health, Ammo, Boom info (left side)
+            ctx.fillStyle = '#00ff00';
+            ctx.font = 'bold 12px Arial';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText(`❤ ${Math.max(0, Math.floor(player.health))}`, 10, 5);
+            ctx.fillText(`🔫 ${player.ammo}/${player.maxAmmo}`, 10, 20);
+            ctx.fillText(`💥 ${player.boomCharges}`, 10, 35);
+
+            // Level and enemies (center)
+            ctx.fillStyle = '#ff6600';
+            ctx.font = 'bold 14px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillText(`LEVEL ${gameState.level}`, canvas.width / 2, 8);
+            ctx.fillText(`Enemies: ${enemies.length}/${gameState.lastEnemyCount}`, canvas.width / 2, 28);
+
+            // Score (right side)
+            ctx.fillStyle = '#ffff00';
+            ctx.font = 'bold 12px Arial';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'top';
+            ctx.fillText(`Score: ${gameState.score}`, canvas.width - 10, 5);
+
+            // Controls hint (right side)
+            ctx.fillStyle = '#aaaaaa';
+            ctx.font = '10px Arial';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'top';
+            ctx.fillText(`WASD/Mouse/Click • Space=Dash • E=Reload`, canvas.width - 10, 22);
+            ctx.fillText(`P=Pause • R=Restart`, canvas.width - 10, 35);
         }
 
         function updateUI() {
