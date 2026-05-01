@@ -272,6 +272,7 @@
         let particles = [];
         let wallRects = [];
         let healthPacks = [];
+        let ammoPacks = [];
 
         // Input handling
         const keys = {};
@@ -559,6 +560,10 @@
                             if (Math.random() > 0.7) {
                                 healthPacks.push({ x: enemy.x, y: enemy.y, collected: false });
                             }
+                            
+                            if (Math.random() > 0.6) {
+                                ammoPacks.push({ x: enemy.x, y: enemy.y, collected: false, amount: 10 });
+                            }
                         }
 
                         bullets.splice(i, 1);
@@ -607,12 +612,22 @@
                 }
             }
 
+            // Check ammo packs
+            for (let pack of ammoPacks) {
+                const dist = Math.hypot(pack.x - player.x, pack.y - player.y);
+                if (dist < 20 && !pack.collected) {
+                    player.ammo = Math.min(player.maxAmmo, player.ammo + pack.amount);
+                    pack.collected = true;
+                }
+            }
+
             // Check win condition
             if (enemies.length === 0 && gameState.lastEnemyCount > 0) {
                 gameState.level++;
                 player.health = player.maxHealth;
                 player.ammo = player.maxAmmo;
                 healthPacks = [];
+                ammoPacks = [];
                 spawnEnemies();
             }
 
@@ -698,6 +713,22 @@
                 }
             }
 
+            // Draw ammo packs
+            for (let pack of ammoPacks) {
+                if (!pack.collected) {
+                    ctx.fillStyle = '#ffff00';
+                    ctx.beginPath();
+                    ctx.arc(pack.x, pack.y, 8, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = '#000';
+                    ctx.font = 'bold 10px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('•', pack.x, pack.y);
+                }
+            }
+
             // Pause indicator
             if (gameState.paused) {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
@@ -736,6 +767,7 @@
             bullets = [];
             particles = [];
             healthPacks = [];
+            ammoPacks = [];
             document.getElementById('gameOverScreen').style.display = 'none';
             document.getElementById('pauseBtn').textContent = '⏸ Pause';
             spawnEnemies();
