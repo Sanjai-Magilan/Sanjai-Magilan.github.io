@@ -201,8 +201,8 @@
                 <div class="stat-value" id="ammo">30</div>
             </div>
             <div class="stat-box">
-                <div class="stat-label">Enemies</div>
-                <div class="stat-value" id="enemies">0</div>
+                <div class="stat-label">Laser</div>
+                <div class="stat-value" id="laser">0</div>
             </div>
             <div class="stat-box">
                 <div class="stat-label">Score</div>
@@ -263,7 +263,9 @@
             ammo: 30,
             maxAmmo: 30,
             dashCooldown: 0,
-            dashDistance: 50
+            dashDistance: 50,
+            hasLaser: false,
+            laserCharges: 0
         };
 
         // Game objects
@@ -273,6 +275,8 @@
         let wallRects = [];
         let healthPacks = [];
         let ammoPacks = [];
+        let laserPacks = [];
+        let lasers = [];
 
         // Input handling
         const keys = {};
@@ -456,6 +460,12 @@
         function shoot() {
             if (!gameState.running || gameState.paused) return;
 
+            // Use laser if available
+            if (player.hasLaser && player.laserCharges > 0) {
+                fireLaser();
+                return;
+            }
+
             if (player.ammo > 0) {
                 const bx = player.x + Math.cos(player.angle) * 12;
                 const by = player.y + Math.sin(player.angle) * 12;
@@ -469,6 +479,56 @@
                     particles.push(new Particle(bx, by, vx, vy, '#ffff00', 15));
                 }
             }
+        }
+
+        function fireLaser() {
+            if (player.laserCharges <= 0) return;
+
+            player.laserCharges--;
+            const endX = player.x + Math.cos(player.angle) * 1000;
+            const endY = player.y + Math.sin(player.angle) * 1000;
+
+            lasers.push({
+                x1: player.x,
+                y1: player.y,
+                x2: endX,
+                y2: endY,
+                life: 10,
+                maxLife: 10
+            });
+
+            // Instant kill all enemies hit by laser
+            for (let j = enemies.length - 1; j >= 0; j--) {
+                if (!enemies[j]) continue;
+                const enemy = enemies[j];
+
+                // Check if enemy is on the laser line
+                const dist = pointToLineDistance(enemy.x, enemy.y, player.x, player.y, endX, endY);
+                if (dist < 25) {
+                    // Kill enemy instantly
+                    gameState.score += 250;
+                    enemies.splice(j, 1);
+
+                    if (Math.random() > 0.7) {
+                        healthPacks.push({ x: enemy.x, y: enemy.y, collected: false });
+                    }
+                    if (gameState.level >= 15 && Math.random() > 0.6) {
+                        ammoPacks.push({ x: enemy.x, y: enemy.y, collected: false, amount: 10 });
+                    }
+
+                    // Particles
+                    for (let k = 0; k < 10; k++) {
+                        const angle = Math.random() * Math.PI * 2;
+                        particles.push(new Particle(enemy.x, enemy.y, Math.cos(angle) * 5, Math.sin(angle) * 5, '#00ffff', 25));
+                    }
+                }
+            }
+        }
+
+        function pointToLineDistance(px, py, x1, y1, x2, y2) {
+            const num = Math.abs((y2 - y1) * px - (x2 - x1) * py + x2 * y1 - y2 * x1);
+            const den = Math.sqrt((y2 - y1) ** 2 + (x2 - x1) ** 2);
+            return num / den;
         }
 
         function reloadAmmo() {
@@ -564,6 +624,10 @@
                             if (Math.random() > 0.6) {
                                 ammoPacks.push({ x: enemy.x, y: enemy.y, collected: false, amount: 10 });
                             }
+
+                            if (gameState.level >= 15 && Math.random() > 0.95) {
+                                laserPacks.push({ x: enemy.x, y: enemy.y, collected: false });
+                            }
                         }
 
                         bullets.splice(i, 1);
@@ -623,6 +687,24 @@
                 }
             }
 
+            // Check laser packs
+            for (let pack of laserPacks) {
+                const dist = Math.hypot(pack.x - player.x, pack.y - player.y);
+                if (dist < 20 && !pack.collected) {
+                    player.hasLaser = true;
+                    player.laserCharges = Math.min(10, player.laserCharges + 1);
+                    pack.collected = true;
+                }
+            }
+
+            // Update lasers
+            for (let i = lasers.length - 1; i >= 0; i--) {
+                lasers[i].life--;
+                if (lasers[i].life <= 0) {
+                    lasers.splice(i, 1);
+                }
+            }
+
             // Check win condition
             if (enemies.length === 0 && gameState.lastEnemyCount > 0) {
                 gameState.level++;
@@ -630,6 +712,8 @@
                 player.ammo = player.maxAmmo;
                 healthPacks = [];
                 ammoPacks = [];
+                laserPacks = [];
+                lasers = [];
                 spawnEnemies();
             }
 
@@ -731,6 +815,46 @@
                 }
             }
 
+            // Draw laser packs (RARE!)
+            for (let pack of laserPacks) {
+                if (!pack.collected) {
+                    ctx.fillStyle = '#00ffff';
+                    ctx.beginPath();
+                    ctx.arc(pack.x, pack.y, 10, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = '#0088ff';
+                    ctx.beginPath();
+                    ctx.arc(pack.x, pack.y, 7, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('⚡', pack.x, pack.y);
+                }
+            }
+
+            // Draw lasers
+            for (let laser of lasers) {
+                const opacity = laser.life / laser.maxLife;
+                ctx.strokeStyle = `rgba(0, 255, 255, ${opacity})`;
+                ctx.lineWidth = 8;
+                ctx.beginPath();
+                ctx.moveTo(laser.x1, laser.y1);
+                ctx.lineTo(laser.x2, laser.y2);
+                ctx.stroke();
+
+                // Inner laser glow
+                ctx.strokeStyle = `rgba(255, 255, 255, ${opacity * 0.5})`;
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(laser.x1, laser.y1);
+                ctx.lineTo(laser.x2, laser.y2);
+                ctx.stroke();
+            }
+
             // Pause indicator
             if (gameState.paused) {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
@@ -747,7 +871,7 @@
         function updateUI() {
             document.getElementById('health').textContent = Math.max(0, Math.floor(player.health));
             document.getElementById('ammo').textContent = player.ammo;
-            document.getElementById('enemies').textContent = enemies.length;
+            document.getElementById('laser').textContent = player.laserCharges;
             document.getElementById('score').textContent = gameState.score;
             document.getElementById('levelText').textContent = `Level ${gameState.level} - Enemies: ${enemies.length}/${gameState.lastEnemyCount}`;
         }
@@ -766,10 +890,14 @@
             gameState.score = 0;
             player.health = player.maxHealth;
             player.ammo = player.maxAmmo;
+            player.hasLaser = false;
+            player.laserCharges = 0;
             bullets = [];
             particles = [];
             healthPacks = [];
             ammoPacks = [];
+            laserPacks = [];
+            lasers = [];
             document.getElementById('gameOverScreen').style.display = 'none';
             document.getElementById('pauseBtn').textContent = '⏸ Pause';
             spawnEnemies();
